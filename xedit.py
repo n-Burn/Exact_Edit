@@ -4,4 +4,4 @@
 from math import degrees, radians
 
 print("30 degrees in radians:", radians(30))
-print("3.14 radians in degrees:", degrees(30))
+print("3.14 radians in degrees:", degrees(3.14))
