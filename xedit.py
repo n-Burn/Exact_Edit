@@ -74,7 +74,7 @@ class Colr:
     white  = 1.0, 1.0, 1.0, 1.0
     grey   = 1.0, 1.0, 1.0, 0.4
     black  = 0.0, 0.0, 0.0, 1.0
-    yellow = 1.0, 1.0, 0.5, 0.5
+    yellow = 1.0, 1.0, 0.0, 0.6
     brown  = 0.15, 0.15, 0.15, 0.20
 
 
@@ -356,7 +356,7 @@ def init_ref_pts(self):
     self.pts = [
         ReferencePoint("fre", Colr.green),
         ReferencePoint("anc", Colr.red),
-        ReferencePoint("piv", Colr.blue)
+        ReferencePoint("piv", Colr.yellow)
     ]
     # todo : move this part of initialization elsewhere?
     RotDat.piv_norm = None
