@@ -349,8 +349,8 @@ class ReferencePoint:
 
     def print_vals(self):  # debug
         print("self.ptype:", self.ptype)
-        print("self.colr:", self.colr)
-        print("self.co3d:", self.co3d)
+        print("self.colr :", self.colr)
+        print("self.co3d :", self.co3d)
 
 def init_ref_pts(self):
     self.pts = [
@@ -358,6 +358,7 @@ def init_ref_pts(self):
         ReferencePoint("anc", Colr.red),
         ReferencePoint("piv", Colr.blue)
     ]
+    # todo : move this part of initialization elsewhere?
     RotDat.piv_norm = None
     RotDat.new_ang_r = None
     RotDat.ang_diff_r = None
@@ -1135,8 +1136,8 @@ def set_help_text(self, mode):
 def draw_callback_px(self, context):
     reg = bpy.context.region
     rv3d = bpy.context.region_data
-    ptsz_lrg = 30
-    ptsz_sml = 15
+    ptsz_lrg = 20
+    ptsz_sml = 10
 
     add_rm_co = Vector((self.rtoolsw, 0))
     self.add_rm_btn.draw_btn(add_rm_co, self.mouse_co)
@@ -1543,7 +1544,7 @@ class ExactEdit(bpy.types.Operator):
             self.lk_pts = []
             self.multi_tmp = TempPoint()
             self.meas_btn = ViewButton(Colr.red, Colr.white, 18, Colr.white, (0, 20))
-            self.add_rm_btn = ViewButton(Colr.red, Colr.white, 18, Colr.white, (200, 32))
+            self.add_rm_btn = ViewButton(Colr.red, Colr.white, 18, Colr.white, (190, 36))
             self.overlap_idx = None
             #self.ctrl_click = False
             self.shift_held = False
