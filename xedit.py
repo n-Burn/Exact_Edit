@@ -21,10 +21,11 @@ END GPL LICENSE BLOCK
 bl_info = {
     "name": "Exact Edit",
     "author": "nBurn",
-    "version": (0, 0, 0),
+    "version": (0, 1, 0),
     "blender": (2, 7, 7),
     "location": "View3D",
     "description": "Tool for precisely setting distance and rotation of objects and geometry",
+    "wiki_url": "https://github.com/n-Burn/Exact_Edit/wiki",
     "category": "Object"
 }
 
@@ -275,7 +276,7 @@ class TempPoint():
         self.ls = []  # point list
         self.cnt = 0
         self.co3d = None
-        self.max_cnt = 20
+        self.max_cnt = 50
 
     def average(self):
         vsum = Vector()
@@ -881,10 +882,11 @@ def find_correct_rot(ref_pts, pt_cnt):
 
 
 # Takes 2D Pivot Point (piv) for piv to temp lines, 2 possible rotation
-# coordinates to choose between (rot_co_pos, rot_co_neg), 2 rotation angles used to
-# obtain the coordinates (r_p_ang_r, r_n_ang_r), and 2D mouse location (mouse_co)
-# for determining which rotation coordinate is closest to the cursor.
-# Returns the rotation coordinate closest to the 2d mouse position.
+# coordinates to choose between (rot_co_pos, rot_co_neg), and a
+# 2D mouse location (mouse_co) for determining which rotation coordinate
+# is closest to the cursor.
+# Returns the rotation coordinate closest to the 2d mouse position and the
+# rotation angles used to obtain the coordinates (rot_ang_rad).
 # rot_co_pos == rotated coordinate positive,  rot_co_neg == rot coor Negative
 # todo : make r_p_co2d and r_n_co2d VertObj types ?
 #def choose_0_or_180(piv, rot_co_pos, r_p_ang_r, rot_co_neg, r_n_ang_r, mouse_co):
@@ -1091,7 +1093,6 @@ def process_popup_input(self):
                         find_correct_rot(self.pts, self.pt_cnt)
                 do_transform(self)
         #elif self.transf_type == SCALE:
-        #    self.addon_mode = DO_TRANSFORM
         #    do_transform(self)
     else:
         reset_settings(self)
@@ -1149,7 +1150,7 @@ def draw_callback_px(self, context):
     if self.pt_cnt < 3:
         ms_colr = self.pts[self.pt_cnt].colr
 
-    lk_pts2d = None
+    lk_pts2d = None  # lock points 2D
 
     # if the addon_mode is WAIT_FOR_POPUP, wait on POPUP to disable
     # popup_active, then run process_popup_input
@@ -1199,12 +1200,14 @@ def draw_callback_px(self, context):
 
     else:  # "Normal" mode
         closest_pt, self.overlap_idx = closest_to_point(self.mouse_co, pts2d)
+        lin_p = pts2d
         if self.shift_held is True:
             draw_pt_2d(closest_pt, Colr.white, ptsz_lrg)
         else:
             draw_pt_2d(closest_pt, Colr.black, ptsz_lrg)
         if RotDat.axis_lock is not None:
             lk_pts2d = [p.get_co2d() for p in RotDat.lock_pts]
+            lin_p = lk_pts2d
             # draw axis lock indicator
             if   RotDat.axis_lock == 'X':
                 txt_colr = Colr.red
@@ -1219,12 +1222,6 @@ def draw_callback_px(self, context):
             blf.size(font_id, txt_sz, dpi)
             blf.position(font_id, x_pos, y_pos, 0)
             blf.draw(font_id, RotDat.axis_lock)
-
-    self.meas_btn.active = False  # to-do : cleaner btn activation
-    if self.mod_pt is None and self.grab_pt is None:
-        lin_p = pts2d
-        if lk_pts2d is not None:
-            lin_p = lk_pts2d
         if self.pt_cnt == 2:
             draw_line_2d(lin_p[0], lin_p[1], Colr.white)
             if None not in (lin_p[0], lin_p[1]):
@@ -1238,9 +1235,11 @@ def draw_callback_px(self, context):
             self.meas_btn.draw_btn(lin_p[2], self.mouse_co)
             self.meas_btn.active = True
 
+    # draw reference points
     for p in range(self.pt_cnt):
         draw_pt_2d(pts2d[p], self.pts[p].colr, ptsz_sml)
-    
+
+    # draw lock points
     if lk_pts2d is not None:
         lp_cnt = len(RotDat.lock_pts)
         for p in range(lp_cnt):
@@ -1291,6 +1290,9 @@ class ExactEdit(bpy.types.Operator):
         'NUMPAD_6', 'NUMPAD_7', 'NUMPAD_8', 'NUMPAD_9', 'TAB'}:
             return {'PASS_THROUGH'}
 
+        if event.type == 'MOUSEMOVE':
+            self.mouse_co = Vector((event.mouse_region_x, event.mouse_region_y))
+
         if event.type in {'LEFT_SHIFT', 'RIGHT_SHIFT'}:
             if event.value == 'PRESS':
                 self.shift_held = True
@@ -1298,9 +1300,6 @@ class ExactEdit(bpy.types.Operator):
             elif event.value == 'RELEASE':
                 self.shift_held = False
                 #print("\nShift released")  # debug
-
-        if event.type == 'MOUSEMOVE':
-            self.mouse_co = Vector((event.mouse_region_x, event.mouse_region_y))
 
         if event.type == 'RIGHTMOUSE' and event.value == 'PRESS':
             if self.lmb_held is True:
@@ -1538,7 +1537,7 @@ class ExactEdit(bpy.types.Operator):
 
             self.settings_backup = backup_blender_settings()
             self.mouse_co = Vector((event.mouse_region_x, event.mouse_region_y))
-            self.highlight = True
+            self.highlight = True  # draw ref point on mouse
             self.pts = []
             self.pt_cnt = 0
             self.lk_pts = []
