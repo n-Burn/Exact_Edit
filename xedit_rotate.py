@@ -900,7 +900,7 @@ class ExactEditRotate(bpy.types.Operator):
             # Safely exit transform
             if self.running_transf is True:
                 self.running_transf = False
-        
+
         elif event.type in {'RET', 'LEFTMOUSE'} and event.value == 'PRESS':
             self.mouse_co = Vector((event.mouse_region_x, event.mouse_region_y))
             if event.type == 'LEFTMOUSE':
@@ -908,192 +908,192 @@ class ExactEditRotate(bpy.types.Operator):
             #print("LEFTMOUSE PRESS")  # debug
 
         elif event.type in {'RET', 'LEFTMOUSE'} and event.value == 'RELEASE':
+            # prevent click/enter that launched add-on from doing anything
+            if self.first_run is True:
+                self.first_run = False
+                return {'RUNNING_MODAL'}
             if event.type == 'LEFTMOUSE':
                 self.lmb_held = False
             #print("LeftMouse released")  # debug
             self.mouse_co = Vector((event.mouse_region_x, event.mouse_region_y))
-            if self.first_run is False:
-                #===========================
-                # Safely exit transform
-                #===========================
-                if self.running_transf is True:
-                    self.running_transf = False
-                
-                #===================================
-                # Check for click on Rotate Button
-                #===================================
-                elif self.rotate_btn.active is True and \
-                        self.rotate_btn.ms_over is True:
-                    #print("Button Clicked")
-                    curs_loc = None
-                    #bpy.ops.object.ms_input_dialog_op('INVOKE_DEFAULT')
-                    if self.pt_cnt == 1:
-                        if RotDat.axis_lock == 'X':
-                            rot_axis = 1.0, 0.0, 0.0
-                        elif RotDat.axis_lock == 'Y':
-                            rot_axis = 0.0, 1.0, 0.0
-                        elif RotDat.axis_lock == 'Z':
-                            # -1 because it is assumed most rotations
-                            # will have negative z pointing down
-                            rot_axis = 0.0, 0.0, -1.0
-                        curs_loc = self.pts[0].co3d.copy()
-                    elif self.pt_cnt == 2:
-                        #if RotDat.axis_lock is None:
-                        rot_vec = self.pts[1].co3d - self.pts[0].co3d
-                        rot_axis = rot_vec.normalized()
-                        curs_loc = self.pts[0].co3d.lerp(self.pts[1].co3d, 0.5)
-                    elif self.pt_cnt == 3:
-                        #if RotDat.axis_lock is None:
-                        rot_axis = RotDat.piv_norm
-                        curs_loc = self.pts[2].co3d.copy()
-                    self.running_transf = True
-                    bpy.context.space_data.pivot_point = 'CURSOR'
-                    bpy.context.scene.cursor_location = curs_loc
-                    bpy.ops.transform.rotate('INVOKE_DEFAULT',axis=rot_axis)
 
-                #elif self.meas_btn.active is True and \
-                #        self.meas_btn.ms_over is True:
-                #    print("Button Clicked!")
-                #    #bpy.ops.object.ms_input_dialog_op('INVOKE_DEFAULT')
-                        
-                #===========================================
-                # Check for click on "Add Selected" Button
-                #===========================================
-                elif self.add_rm_btn.ms_over is True:
-                    if self.mod_pt is not None:
-                        if self.shift_held is False:
-                            add_select_multi(self)
-                    elif self.grab_pt is not None:
-                        co3d = None
-                        if bpy.context.mode == "OBJECT":
-                            if len(bpy.context.selected_objects) > 0:
-                                co3d = bpy.context.selected_objects[0].location
-                        elif bpy.context.mode == "EDIT_MESH":
-                            m_w = bpy.context.edit_object.matrix_world
-                            bm = bmesh.from_edit_mesh(bpy.context.edit_object.data)
-                            if len(bm.select_history) > 0:
-                                for sel in bm.select_history:
-                                    if type(sel) is bmesh.types.BMVert:
-                                        co3d = m_w * sel.co
-                                        break
-                        if co3d is not None:
-                            if in_ref_pts(self, co3d) is False:
-                                self.pts[self.grab_pt].co3d = co3d
-                            else:
-                                swap_ref_pts(self, self.grab_pt, self.swap_pt)
-                                self.swap_pt = None
-                        self.grab_pt = None
+            #===========================
+            # Safely exit transform
+            #===========================
+            if self.running_transf is True:
+                self.running_transf = False
+
+            #===================================
+            # Check for click on Rotate Button
+            #===================================
+            elif self.rotate_btn.active is True and \
+                    self.rotate_btn.ms_over is True:
+                #print("Button Clicked")
+                curs_loc = None
+                #bpy.ops.object.ms_input_dialog_op('INVOKE_DEFAULT')
+                if self.pt_cnt == 1:
+                    if RotDat.axis_lock == 'X':
+                        rot_axis = 1.0, 0.0, 0.0
+                    elif RotDat.axis_lock == 'Y':
+                        rot_axis = 0.0, 1.0, 0.0
+                    elif RotDat.axis_lock == 'Z':
+                        # -1 because it is assumed most rotations
+                        # will have negative z pointing down
+                        rot_axis = 0.0, 0.0, -1.0
+                    curs_loc = self.pts[0].co3d.copy()
+                elif self.pt_cnt == 2:
+                    #if RotDat.axis_lock is None:
+                    rot_vec = self.pts[1].co3d - self.pts[0].co3d
+                    rot_axis = rot_vec.normalized()
+                    curs_loc = self.pts[0].co3d.lerp(self.pts[1].co3d, 0.5)
+                elif self.pt_cnt == 3:
+                    #if RotDat.axis_lock is None:
+                    rot_axis = RotDat.piv_norm
+                    curs_loc = self.pts[2].co3d.copy()
+                self.running_transf = True
+                bpy.context.space_data.pivot_point = 'CURSOR'
+                bpy.context.scene.cursor_location = curs_loc
+                bpy.ops.transform.rotate('INVOKE_DEFAULT',axis=rot_axis)
+
+            #elif self.meas_btn.active is True and \
+            #        self.meas_btn.ms_over is True:
+            #    print("Button Clicked!")
+            #    #bpy.ops.object.ms_input_dialog_op('INVOKE_DEFAULT')
+                    
+            #===========================================
+            # Check for click on "Add Selected" Button
+            #===========================================
+            elif self.add_rm_btn.ms_over is True:
+                if self.mod_pt is not None:
+                    if self.shift_held is False:
+                        add_select_multi(self)
+                elif self.grab_pt is not None:
+                    co3d = None
+                    if bpy.context.mode == "OBJECT":
+                        if len(bpy.context.selected_objects) > 0:
+                            co3d = bpy.context.selected_objects[0].location
+                    elif bpy.context.mode == "EDIT_MESH":
+                        m_w = bpy.context.edit_object.matrix_world
+                        bm = bmesh.from_edit_mesh(bpy.context.edit_object.data)
+                        if len(bm.select_history) > 0:
+                            for sel in bm.select_history:
+                                if type(sel) is bmesh.types.BMVert:
+                                    co3d = m_w * sel.co
+                                    break
+                    if co3d is not None:
+                        if in_ref_pts(self, co3d) is False:
+                            self.pts[self.grab_pt].co3d = co3d
+                        else:
+                            swap_ref_pts(self, self.grab_pt, self.swap_pt)
+                            self.swap_pt = None
+                    self.grab_pt = None
+                    updatelock_pts(self, self.pts)
+                    set_piv(self)
+                else:
+                    add_select(self)
+                    if self.pt_cnt > 1:
+                        RotDat.axis_lock = None
                         updatelock_pts(self, self.pts)
-                        set_piv(self)
-                    else:
-                        add_select(self)
-                        if self.pt_cnt > 1:
-                            RotDat.axis_lock = None
-                            updatelock_pts(self, self.pts)
-                        set_piv(self)
+                    set_piv(self)
 
-                #===========================
-                # Point Place or Grab Mode
-                #===========================
-                elif self.mod_pt is None:
-                    if self.overlap_idx is None:  # no point overlap
-                        if self.shift_held is False:
-                            if self.grab_pt is not None:
-                                found_pt = find_closest_point(self.mouse_co)
-                                if found_pt is not None:
-                                    if in_ref_pts(self, found_pt) is False:
-                                        self.pts[self.grab_pt].co3d = found_pt
-                                self.grab_pt = None
-                                if self.pt_cnt > 1:
-                                    updatelock_pts(self, self.pts)
-                                set_highlight(self)
-                                set_piv(self)
-                                set_help_text(self, "CLICK")
-                            elif self.pt_cnt < 3:
-                                found_pt = find_closest_point(self.mouse_co)
-                                if found_pt is not None:
-                                    if in_ref_pts(self, found_pt) is False:
-                                        self.pts[self.pt_cnt].co3d = found_pt
-                                        self.pt_cnt += 1
-                                        if self.pt_cnt > 1:
-                                            RotDat.axis_lock = None
-                                            updatelock_pts(self, self.pts)
-                                            set_piv(self)
-                                            #if self.pt_cnt
-                                        set_highlight(self)
-                                        #set_meas_btn(self)
-                                        set_help_text(self, "CLICK")
-                                        ''' Begin Debug
-                                        cnt = self.pt_cnt - 1
-                                        pt_fnd_str = str(self.pts[cnt].co3d)
-                                        pt_fnd_str = pt_fnd_str.replace("<Vector ", "Vector(")
-                                        pt_fnd_str = pt_fnd_str.replace(">", ")")
-                                        print("ref_pt_" + str(cnt) + ' =', pt_fnd_str)
-                                        #print("ref pt added:", self.cnt, "cnt:", self.cnt+1) 
-                                        End Debug '''
-                    else:  # overlap
+            #===========================
+            # Point Place or Grab Mode
+            #===========================
+            elif self.mod_pt is None:
+                if self.overlap_idx is None:  # no point overlap
+                    if self.shift_held is False:
                         if self.grab_pt is not None:
-                            if self.shift_held is False:
-                                if self.grab_pt != self.overlap_idx:
-                                    swap_ref_pts(self, self.grab_pt, self.overlap_idx)
-                                self.grab_pt = None
-                                if self.pt_cnt > 1:
-                                    updatelock_pts(self, self.pts)
-                                set_highlight(self)
-                                set_piv(self)
-                                set_help_text(self, "CLICK")
-
-                        elif self.shift_held is False:
-                            # overlap and shift not held == remove point
-                            rem_ref_pt(self, self.overlap_idx)
-                            set_help_text(self, "CLICK")
-                        else:  # shift_held
-                            # enable multi point mode
-                            self.mod_pt = self.overlap_idx
-                            self.multi_tmp.reset(self.pts[self.mod_pt].co3d)
-                            self.highlight = True
-                            set_help_text(self, "MULTI")
-
-                #===========================
-                # Mod Ref Point Mode
-                #===========================
-                else:  # mod_pt exists
-                    if self.overlap_idx is None:  # no point overlap
-                        if self.shift_held is False:
-                            # attempt to add new point to multi_tmp
                             found_pt = find_closest_point(self.mouse_co)
                             if found_pt is not None:
-                                self.multi_tmp.try_add(found_pt)
-                                mult_co3d = self.multi_tmp.get_co()
-                                if in_ref_pts(self, mult_co3d, self.mod_pt):
-                                    self.report({'WARNING'}, 'Points overlap.')
-                                self.pts[self.mod_pt].co3d = mult_co3d
-                        else:  # shift_held, exit multi_tmp
-                            exit_multi_mode(self)
+                                if in_ref_pts(self, found_pt) is False:
+                                    self.pts[self.grab_pt].co3d = found_pt
+                            self.grab_pt = None
+                            if self.pt_cnt > 1:
+                                updatelock_pts(self, self.pts)
+                            set_highlight(self)
                             set_piv(self)
                             set_help_text(self, "CLICK")
-                    else:  # overlap multi_tmp
+                        elif self.pt_cnt < 3:
+                            found_pt = find_closest_point(self.mouse_co)
+                            if found_pt is not None:
+                                if in_ref_pts(self, found_pt) is False:
+                                    self.pts[self.pt_cnt].co3d = found_pt
+                                    self.pt_cnt += 1
+                                    if self.pt_cnt > 1:
+                                        RotDat.axis_lock = None
+                                        updatelock_pts(self, self.pts)
+                                        set_piv(self)
+                                        #if self.pt_cnt
+                                    set_highlight(self)
+                                    #set_meas_btn(self)
+                                    set_help_text(self, "CLICK")
+                                    ''' Begin Debug
+                                    cnt = self.pt_cnt - 1
+                                    pt_fnd_str = str(self.pts[cnt].co3d)
+                                    pt_fnd_str = pt_fnd_str.replace("<Vector ", "Vector(")
+                                    pt_fnd_str = pt_fnd_str.replace(">", ")")
+                                    print("ref_pt_" + str(cnt) + ' =', pt_fnd_str)
+                                    #print("ref pt added:", self.cnt, "cnt:", self.cnt+1) 
+                                    End Debug '''
+                else:  # overlap
+                    if self.grab_pt is not None:
                         if self.shift_held is False:
-                            # remove multi_tmp point
-                            self.multi_tmp.rem_pt(self.overlap_idx)
-                            # if all multi_tmp points removed,
-                            # exit multi mode, remove edited point
-                            if self.multi_tmp.co3d is None:
-                                rem_ref_pt(self, self.mod_pt)
-                                self.mod_pt = None
-                                set_help_text(self, "CLICK")
-                            elif in_ref_pts(self, self.multi_tmp.co3d, self.mod_pt):
-                                self.report({'WARNING'}, 'Points overlap.')
-                                self.pts[self.mod_pt].co3d = self.multi_tmp.get_co()
-                            else:
-                                self.pts[self.mod_pt].co3d = self.multi_tmp.get_co()
-                        else:  # shift_held
-                            exit_multi_mode(self)
+                            if self.grab_pt != self.overlap_idx:
+                                swap_ref_pts(self, self.grab_pt, self.overlap_idx)
+                            self.grab_pt = None
+                            if self.pt_cnt > 1:
+                                updatelock_pts(self, self.pts)
+                            set_highlight(self)
+                            set_piv(self)
                             set_help_text(self, "CLICK")
 
-            else:
-                # prevent click/enter that launched add-on from doing anything
-                self.first_run = False
+                    elif self.shift_held is False:
+                        # overlap and shift not held == remove point
+                        rem_ref_pt(self, self.overlap_idx)
+                        set_help_text(self, "CLICK")
+                    else:  # shift_held
+                        # enable multi point mode
+                        self.mod_pt = self.overlap_idx
+                        self.multi_tmp.reset(self.pts[self.mod_pt].co3d)
+                        self.highlight = True
+                        set_help_text(self, "MULTI")
+
+            #===========================
+            # Mod Ref Point Mode
+            #===========================
+            else:  # mod_pt exists
+                if self.overlap_idx is None:  # no point overlap
+                    if self.shift_held is False:
+                        # attempt to add new point to multi_tmp
+                        found_pt = find_closest_point(self.mouse_co)
+                        if found_pt is not None:
+                            self.multi_tmp.try_add(found_pt)
+                            mult_co3d = self.multi_tmp.get_co()
+                            if in_ref_pts(self, mult_co3d, self.mod_pt):
+                                self.report({'WARNING'}, 'Points overlap.')
+                            self.pts[self.mod_pt].co3d = mult_co3d
+                    else:  # shift_held, exit multi_tmp
+                        exit_multi_mode(self)
+                        set_piv(self)
+                        set_help_text(self, "CLICK")
+                else:  # overlap multi_tmp
+                    if self.shift_held is False:
+                        # remove multi_tmp point
+                        self.multi_tmp.rem_pt(self.overlap_idx)
+                        # if all multi_tmp points removed,
+                        # exit multi mode, remove edited point
+                        if self.multi_tmp.co3d is None:
+                            rem_ref_pt(self, self.mod_pt)
+                            self.mod_pt = None
+                            set_help_text(self, "CLICK")
+                        elif in_ref_pts(self, self.multi_tmp.co3d, self.mod_pt):
+                            self.report({'WARNING'}, 'Points overlap.')
+                            self.pts[self.mod_pt].co3d = self.multi_tmp.get_co()
+                        else:
+                            self.pts[self.mod_pt].co3d = self.multi_tmp.get_co()
+                    else:  # shift_held
+                        exit_multi_mode(self)
+                        set_help_text(self, "CLICK")
 
         if event.type == 'C' and event.value == 'PRESS':
             #print("Pressed C\n")  # debug
@@ -1168,7 +1168,7 @@ class ExactEditRotate(bpy.types.Operator):
             #self.debug_flag = False
             self.mod_pt = None
             #self.pause = False
-            self.first_run = True
+            self.first_run = event.type in {'RET', 'LEFTMOUSE'} and event.value != 'RELEASE'
             self.force_quit = False
             self.grab_pt = None
             #self.ang_diff_r = 0
