@@ -151,7 +151,7 @@ def flt_lists_alm_eq(ls_a, ls_b):
 
 # == pop-up dialog code ==
 # todo: update with newer menu code if it can ever be made to work
-class MeasureInputPanel(bpy.types.Operator):
+class XEditMeasureInputPanel(bpy.types.Operator):
     bl_idname = "object.ms_input_dialog_op"
     bl_label = "Measurement Input Panel"
     bl_options = {'INTERNAL'}
@@ -1062,7 +1062,7 @@ def do_transform(self):
     '''
 
 
-# Run after for MeasureInputPanel pop-up disables popup_active.
+# Run after for XEditMeasureInputPanel pop-up disables popup_active.
 # Checks to see if a valid number was input into the pop-up dialog and
 # determines what to do based on what the pop-up was supplied (if anything).
 def process_popup_input(self):
@@ -1580,11 +1580,11 @@ class ExactEdit(bpy.types.Operator):
 
 
 def register():
-    bpy.utils.register_class(MeasureInputPanel)
+    bpy.utils.register_class(XEditMeasureInputPanel)
     bpy.utils.register_class(ExactEdit)
 
 def unregister():
-    bpy.utils.unregister_class(MeasureInputPanel)
+    bpy.utils.unregister_class(XEditMeasureInputPanel)
     bpy.utils.unregister_class(ExactEdit)
 
 if __name__ == "__main__":
