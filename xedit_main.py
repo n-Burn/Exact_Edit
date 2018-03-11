@@ -1313,6 +1313,10 @@ class ExactEdit(bpy.types.Operator):
             self.lmb_held = True
 
         elif event.type in {'RET', 'LEFTMOUSE'} and event.value == 'RELEASE':
+            # prevent click/enter that launched add-on from doing anything
+            if self.first_run is True:
+                self.first_run = False
+                return {'RUNNING_MODAL'}
             if event.type == 'LEFTMOUSE':
                 self.lmb_held = False
             #print("LeftMouse released")  # debug
@@ -1473,10 +1477,6 @@ class ExactEdit(bpy.types.Operator):
                         exit_multi_mode(self)
                         set_meas_btn(self)
                         set_help_text(self, "CLICK")
-
-            else:
-                # prevent click/enter that launched add-on from doing anything
-                self.first_run = False
 
         if event.type == 'C' and event.value == 'PRESS':
             #print("Pressed C\n")  # debug
