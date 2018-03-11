@@ -245,7 +245,7 @@ class TempPoint():
         self.ls = []  # point list
         self.cnt = 0
         self.co3d = None
-        self.max_cnt = 20
+        self.max_cnt = 50
 
     def average(self):
         vsum = Vector()
@@ -369,7 +369,7 @@ def add_pt(self, co3d):
         if self.pt_cnt > 1:
             updatelock_pts(self, self.pts)
         set_highlight(self)
-        ''' Begin Debug
+        ''' Begin Debug 
         cnt = self.pt_cnt - 1
         pt_fnd_str = str(self.pts[cnt].co3d)
         pt_fnd_str = pt_fnd_str.replace("<Vector ", "Vector(")
@@ -781,9 +781,9 @@ def draw_callback_px(self, context):
                     colr = Colr.blue
 
                 t2d = loc3d_to_reg2d(reg, rv3d, test)
-                line_pts = get_axis_line_co(pts2d[0], t2d, rwid, rhgt)
-                if line_pts is not None:
-                    draw_line_2d(line_pts[0], line_pts[1], colr)
+                axis_pts = get_axis_line_co(pts2d[0], t2d, rwid, rhgt)
+                if axis_pts is not None:
+                    draw_line_2d(axis_pts[0], axis_pts[1], colr)
 
                 dpi = bpy.context.user_preferences.system.dpi
                 font_id, txt_sz = 0, 32
@@ -794,10 +794,10 @@ def draw_callback_px(self, context):
                 blf.draw(font_id, RotDat.axis_lock)
 
         elif self.pt_cnt == 2:
-            line_pts = get_axis_line_co(pts2d[0], pts2d[1], rwid, rhgt)
+            axis_pts = get_axis_line_co(pts2d[0], pts2d[1], rwid, rhgt)
             #draw_line_2d(pts2d[0], pts2d[1], Colr.white)
-            if line_pts is not None:
-                draw_line_2d(line_pts[0], line_pts[1], Colr.white)
+            if axis_pts is not None:
+                draw_line_2d(axis_pts[0], axis_pts[1], Colr.white)
                 #draw_line_2d(pts2d[0], self.mouse_co, Colr.white)
                 btn_co = pts2d[0].lerp(pts2d[1], 0.5)
                 #self.meas_btn.draw_btn(btn_co, self.mouse_co)
@@ -808,9 +808,9 @@ def draw_callback_px(self, context):
         elif self.pt_cnt == 3:
             test = self.pts[2].co3d + RotDat.piv_norm
             t2d = loc3d_to_reg2d(reg, rv3d, test)
-            line_pts = get_axis_line_co(pts2d[2], t2d, rwid, rhgt)
-            if line_pts is not None:
-                draw_line_2d(line_pts[0], line_pts[1], Colr.white)
+            axis_pts = get_axis_line_co(pts2d[2], t2d, rwid, rhgt)
+            if axis_pts is not None:
+                draw_line_2d(axis_pts[0], axis_pts[1], Colr.white)
                 
             #btn_co = pts2d[2] + Vector((0, 20))
             draw_line_2d(pts2d[0], pts2d[2], Colr.white)
@@ -857,7 +857,7 @@ def get_reg_overlap():
 
 
 class ExactEditRotate(bpy.types.Operator):
-    bl_idname = "view3d.xedit_rotate"
+    bl_idname = "view3d.xedit_rotate_op"
     bl_label = "Exact Edit Rotate"
 
     # Only launch Add-On from OBJECT or EDIT modes
@@ -873,6 +873,9 @@ class ExactEditRotate(bpy.types.Operator):
         'NUMPAD_6', 'NUMPAD_7', 'NUMPAD_8', 'NUMPAD_9', 'TAB'}:
             return {'PASS_THROUGH'}
 
+        if event.type == 'MOUSEMOVE':
+            self.mouse_co = Vector((event.mouse_region_x, event.mouse_region_y))
+
         if event.type in {'LEFT_SHIFT', 'RIGHT_SHIFT'}:
             if event.value == 'PRESS':
                 self.shift_held = True
@@ -880,9 +883,6 @@ class ExactEditRotate(bpy.types.Operator):
             elif event.value == 'RELEASE':
                 self.shift_held = False
                 #print("\nShift released")  # debug
-
-        if event.type == 'MOUSEMOVE':
-            self.mouse_co = Vector((event.mouse_region_x, event.mouse_region_y))
 
         if event.type == 'RIGHTMOUSE':
             if event.value == 'PRESS':
@@ -959,7 +959,7 @@ class ExactEditRotate(bpy.types.Operator):
             #        self.meas_btn.ms_over is True:
             #    print("Button Clicked!")
             #    #bpy.ops.object.ms_input_dialog_op('INVOKE_DEFAULT')
-                    
+
             #===========================================
             # Check for click on "Add Selected" Button
             #===========================================
@@ -995,6 +995,7 @@ class ExactEditRotate(bpy.types.Operator):
                         RotDat.axis_lock = None
                         updatelock_pts(self, self.pts)
                     set_piv(self)
+                set_help_text(self, "CLICK")
 
             #===========================
             # Point Place or Grab Mode
@@ -1025,9 +1026,8 @@ class ExactEditRotate(bpy.types.Operator):
                                         set_piv(self)
                                         #if self.pt_cnt
                                     set_highlight(self)
-                                    #set_meas_btn(self)
                                     set_help_text(self, "CLICK")
-                                    ''' Begin Debug
+                                    ''' Begin Debug 
                                     cnt = self.pt_cnt - 1
                                     pt_fnd_str = str(self.pts[cnt].co3d)
                                     pt_fnd_str = pt_fnd_str.replace("<Vector ", "Vector(")
@@ -1153,7 +1153,8 @@ class ExactEditRotate(bpy.types.Operator):
 
             self.settings_backup = backup_blender_settings()
             self.mouse_co = Vector((event.mouse_region_x, event.mouse_region_y))
-            self.highlight = True
+            self.rtoolsw = get_reg_overlap()  # region tools (toolbar) width
+            self.highlight = True  # draw ref point on mouse
             self.pts = []
             self.running_transf = False
             self.pt_cnt = 0
@@ -1176,7 +1177,6 @@ class ExactEditRotate(bpy.types.Operator):
             self.swap_pt = None
             #self.selected = []
             #self.measure = 0
-            self.rtoolsw = get_reg_overlap()  # region tools (toolbar) width
             #self.addon_mode = CLICK_CHECK  # addon mode
             self.lmb_held = False
 
