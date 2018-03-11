@@ -299,7 +299,6 @@ class TempPoint():
             self.average()
         else:
             self.co3d = None
-        #print("rem_pt, cnt =", self.cnt)  # debug
 
     def try_add(self, co3d):
         found_idx = self.find_pt(co3d)
@@ -397,7 +396,7 @@ def add_pt(self, co3d):
             updatelock_pts(self, self.pts)
         set_highlight(self)
         set_meas_btn(self)
-        ''' Begin Debug
+        ''' Begin Debug 
         cnt = self.pt_cnt - 1
         pt_fnd_str = str(self.pts[cnt].co3d)
         pt_fnd_str = pt_fnd_str.replace("<Vector ", "Vector(")
@@ -1151,6 +1150,7 @@ def draw_callback_px(self, context):
         ms_colr = self.pts[self.pt_cnt].colr
 
     lk_pts2d = None  # lock points 2D
+    self.meas_btn.active = False  # to-do : cleaner btn activation
 
     # if the addon_mode is WAIT_FOR_POPUP, wait on POPUP to disable
     # popup_active, then run process_popup_input
@@ -1274,7 +1274,7 @@ def get_reg_overlap():
 
 
 class ExactEdit(bpy.types.Operator):
-    bl_idname = "view3d.xedit"
+    bl_idname = "view3d.xedit_main_op"
     bl_label = "Exact Edit"
 
     # Only launch Add-On from OBJECT or EDIT modes
@@ -1321,6 +1321,7 @@ class ExactEdit(bpy.types.Operator):
                 self.lmb_held = False
             #print("LeftMouse released")  # debug
             self.mouse_co = Vector((event.mouse_region_x, event.mouse_region_y))
+
             #===========================
             # Check for 0 or 180 click
             #===========================
@@ -1331,7 +1332,7 @@ class ExactEdit(bpy.types.Operator):
                 )
                 self.addon_mode = DO_TRANSFORM  # why needed?
                 do_transform(self)
-                
+
             #===================================
             # Check for click on Measure Button
             #===================================
@@ -1344,7 +1345,7 @@ class ExactEdit(bpy.types.Operator):
                     popup_active = True
                     set_help_text(self, "POPUP")
                     bpy.ops.object.ms_input_dialog_op('INVOKE_DEFAULT')
-                    
+
             #===========================================
             # Check for click on "Add Selected" Button
             #===========================================
@@ -1376,6 +1377,7 @@ class ExactEdit(bpy.types.Operator):
                     set_meas_btn(self)
                 else:
                     add_select(self)
+                set_help_text(self, "CLICK")
 
             #===========================
             # Point Place or Grab Mode
@@ -1406,7 +1408,7 @@ class ExactEdit(bpy.types.Operator):
                                     set_highlight(self)
                                     set_meas_btn(self)
                                     set_help_text(self, "CLICK")
-                                    ''' Begin Debug
+                                    ''' Begin Debug 
                                     cnt = self.pt_cnt - 1
                                     pt_fnd_str = str(self.pts[cnt].co3d)
                                     pt_fnd_str = pt_fnd_str.replace("<Vector ", "Vector(")
@@ -1536,6 +1538,7 @@ class ExactEdit(bpy.types.Operator):
 
             self.settings_backup = backup_blender_settings()
             self.mouse_co = Vector((event.mouse_region_x, event.mouse_region_y))
+            self.rtoolsw = get_reg_overlap()  # region tools (toolbar) width
             self.highlight = True  # draw ref point on mouse
             self.pts = []
             self.pt_cnt = 0
@@ -1557,7 +1560,6 @@ class ExactEdit(bpy.types.Operator):
             self.swap_pt = None
             #self.selected = []
             #self.measure = 0
-            self.rtoolsw = get_reg_overlap()  # region tools (toolbar) width
             self.addon_mode = CLICK_CHECK  # addon mode
             self.transf_type = ""  # transform type
             #self.pt_find_md = SLOW3DTO2D  # point find mode
