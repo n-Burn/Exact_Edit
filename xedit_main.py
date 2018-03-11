@@ -21,7 +21,7 @@ END GPL LICENSE BLOCK
 bl_info = {
     "name": "Exact Edit",
     "author": "nBurn",
-    "version": (0, 0, 1),
+    "version": (0, 0, 2),
     "blender": (2, 7, 7),
     "location": "View3D",
     "description": "Tool for precisely setting distance and rotation of objects and geometry",
