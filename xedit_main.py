@@ -1549,7 +1549,7 @@ class ExactEdit(bpy.types.Operator):
             #self.debug_flag = False
             self.mod_pt = None
             #self.pause = False
-            self.first_run = True
+            self.first_run = event.type in {'RET', 'LEFTMOUSE'} and event.value != 'RELEASE'
             self.force_quit = False
             self.grab_pt = None
             #self.ang_diff_r = 0
