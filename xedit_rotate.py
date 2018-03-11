@@ -21,7 +21,7 @@ END GPL LICENSE BLOCK
 bl_info = {
     "name": "Exact Edit Rotate",
     "author": "nBurn",
-    "version": (0, 0, 0),
+    "version": (0, 0, 1),
     "blender": (2, 7, 7),
     "location": "View3D",
     "description": "Tool for precisely setting an axis for rotations",
