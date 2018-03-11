@@ -18,16 +18,6 @@ Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 END GPL LICENSE BLOCK
 '''
 
-bl_info = {
-    "name": "Exact Edit Rotate",
-    "author": "nBurn",
-    "version": (0, 0, 1),
-    "blender": (2, 7, 7),
-    "location": "View3D",
-    "description": "Tool for precisely setting an axis for rotations",
-    "category": "Object"
-}
-
 from copy import deepcopy
 from math import degrees, radians, pi
 
@@ -146,6 +136,107 @@ def flt_lists_alm_eq(ls_a, ls_b):
         if flts_alm_eq(ls_a[i], ls_b[i]) is False:
             return False
     return True
+
+
+class MenuStore:
+    def __init__(self):
+        self.cnt = 0
+        self.active = 0
+        self.txtcolrs = []
+        self.tcoords = []
+        self.texts = []
+        self.arrows = []  # arrow coordinates
+
+
+class MenuHandler:
+    def __init__(self, tsize, act_colr, dis_colr, toolwid, reg):
+        self.dpi = bpy.context.user_preferences.system.dpi
+        self.menus = [None]  # no menu for 0
+        self.menu_cnt = len(self.menus)
+        self.current = 0  # current active menu
+        self.tsize = tsize  # text size
+        self.act_colr = act_colr
+        self.dis_colr = dis_colr  # disabled color
+        self.reg = reg  # region
+
+        view_offset = 36, 40  # box left top start
+        self.box_y_pad = 8  # vertical space between boxes
+
+        fontid = 0
+        blf.size(fontid, tsize, self.dpi)
+        lcase_wid, lcase_hgt = blf.dimensions(fontid, "n")
+        ucase_wid, ucase_hgt = blf.dimensions(fontid, "N")
+        bot_space = blf.dimensions(fontid, "gp")[1] - lcase_hgt
+        self.full_hgt = blf.dimensions(fontid, "NTgp")[1]
+        
+        arr_wid, arr_hgt = 12, 16
+        arrow_base = (0, 0), (0, arr_hgt), (arr_wid, arr_hgt/2)
+        aw_adj, ah_adj = arr_wid * 1.5, (arr_hgt - ucase_hgt) / 2
+        self.arrow_pts = []
+        for a in arrow_base:
+            self.arrow_pts.append((a[0] - aw_adj, a[1] - ah_adj))
+
+        self.blef = view_offset[0] + toolwid  # box left start
+        self.btop = self.reg.height - view_offset[1]
+        self.txt_y_pad = bot_space * 2
+
+    def add_menu(self, strings):
+        fontid = 0
+        self.menus.append( MenuStore() )
+        new = self.menus[-1]
+        btop = self.btop
+        tlef = self.blef  # text left
+        new.cnt = len(strings)
+        for i in range(new.cnt):
+            new.txtcolrs.append(self.dis_colr)
+            new.texts.append(strings[i])
+            bbot = btop - self.full_hgt
+            new.tcoords.append( (tlef, bbot) )
+            btop = bbot - self.box_y_pad
+            new.arrows.append((
+                (self.arrow_pts[0][0] + tlef, self.arrow_pts[0][1] + bbot),
+                (self.arrow_pts[1][0] + tlef, self.arrow_pts[1][1] + bbot),
+                (self.arrow_pts[2][0] + tlef, self.arrow_pts[2][1] + bbot)))
+        new.txtcolrs[new.active] = self.act_colr
+        self.menu_cnt += 1
+
+    def update_active(self, change):
+        menu = self.menus[self.current]
+        if menu is None:
+            return
+        menu.txtcolrs[menu.active] = self.dis_colr
+        menu.active = (menu.active + change) % menu.cnt
+        menu.txtcolrs[menu.active] = self.act_colr
+
+    def change_menu(self, new):
+        self.current = new
+
+    def get_mode(self):
+        menu = self.menus[self.current]
+        return menu.texts[menu.active]
+
+    #def rebuild_menus(self)  # add in case blender window size changes?
+
+    def draw(self):
+        menu = self.menus[self.current]
+        if menu is None:
+            return
+
+        # draw arrow
+        bgl.glEnable(bgl.GL_BLEND)
+        bgl.glColor4f(*self.act_colr)
+        bgl.glBegin(bgl.GL_LINE_LOOP)
+        for p in menu.arrows[menu.active]:
+            bgl.glVertex2f(*p)
+        bgl.glEnd()
+        
+        # draw text
+        font_id = 0
+        blf.size(font_id, self.tsize, self.dpi)
+        for i in range(menu.cnt):
+            bgl.glColor4f(*menu.txtcolrs[i])
+            blf.position(font_id, menu.tcoords[i][0], menu.tcoords[i][1], 0)
+            blf.draw(font_id, menu.texts[i])
 
 
 # === 3D View mouse location and button code ===
@@ -366,6 +457,7 @@ def add_pt(self, co3d):
     if in_ref_pts(self, co3d) is False:
         self.pts[self.pt_cnt].co3d = co3d
         self.pt_cnt += 1
+        self.menu.change_menu(self.pt_cnt)
         if self.pt_cnt > 1:
             updatelock_pts(self, self.pts)
         set_highlight(self)
@@ -386,6 +478,7 @@ def rem_ref_pt(self, idx):
         for i in range(len(keep_idx)):
             self.pts[i].co3d = self.pts[keep_idx[i]].co3d.copy()
     self.pt_cnt -= 1
+    self.menu.change_menu(self.pt_cnt)
     # set "non-existing" points to None
     for j in range(self.pt_cnt, 3):
         self.pts[j].co3d = None
@@ -407,12 +500,29 @@ def add_select(self):
             m_w = bpy.context.edit_object.matrix_world
             bm = bmesh.from_edit_mesh(bpy.context.edit_object.data)
             if len(bm.select_history) > 0:
+                exit_loop = False  # simplify checking...
                 for sel in bm.select_history:
                     if type(sel) is bmesh.types.BMVert:
                         v_co3d = m_w * sel.co
                         add_pt(self, v_co3d)
                         if self.pt_cnt > 2:
-                            break
+                            exit_loop = True
+                    elif type(sel) is bmesh.types.BMEdge:
+                        for v in sel.verts:
+                            v_co3d = m_w * v.co
+                            add_pt(self, v_co3d)
+                            if self.pt_cnt > 2:
+                                exit_loop = True
+                                break
+                    elif type(sel) is bmesh.types.BMFace:
+                        for v in sel.verts:
+                            v_co3d = m_w * v.co
+                            add_pt(self, v_co3d)
+                            if self.pt_cnt > 2:
+                                exit_loop = True
+                                break
+                    if exit_loop is True:
+                        break
 
 # to-do : find way to merge this with add_select ?
 def add_select_multi(self):
@@ -427,12 +537,29 @@ def add_select_multi(self):
             m_w = bpy.context.edit_object.matrix_world
             bm = bmesh.from_edit_mesh(bpy.context.edit_object.data)
             if len(bm.select_history) > 0:
+                exit_loop = False  # simplify checking...
                 for sel in bm.select_history:
                     if type(sel) is bmesh.types.BMVert:
                         v_co3d = m_w * sel.co
                         self.multi_tmp.try_add(v_co3d)
                         if self.multi_tmp.cnt == self.multi_tmp.max_cnt:
-                            break
+                            exit_loop = True
+                    elif type(sel) is bmesh.types.BMEdge:
+                        for v in sel.verts:
+                            v_co3d = m_w * v.co
+                            self.multi_tmp.try_add(v_co3d)
+                            if self.multi_tmp.cnt == self.multi_tmp.max_cnt:
+                                exit_loop = True
+                                break
+                    elif type(sel) is bmesh.types.BMFace:
+                        for v in sel.verts:
+                            v_co3d = m_w * v.co
+                            self.multi_tmp.try_add(v_co3d)
+                            if self.multi_tmp.cnt == self.multi_tmp.max_cnt:
+                                exit_loop = True
+                                break
+                    if exit_loop is True:
+                        break
         if in_ref_pts(self, self.multi_tmp.get_co(), self.mod_pt):
             self.report({'WARNING'}, 'Points overlap.')
         self.pts[self.mod_pt].co3d = self.multi_tmp.get_co()
@@ -831,6 +958,8 @@ def draw_callback_px(self, context):
     if self.highlight is True and self.running_transf is False:
         draw_pt_2d(self.mouse_co, ms_colr, ptsz_sml)
 
+    self.menu.draw()
+
 
 def exit_addon(self):
     restore_blender_settings(self.settings_backup)
@@ -845,6 +974,7 @@ def exit_addon(self):
 # Sees if "use_region_overlap" is enabled and X offset is needed.
 def get_reg_overlap():
     rtoolsw = 0  # region tools (toolbar) width
+    #ruiw = 0  # region ui (Number/n-panel) width
     system = bpy.context.user_preferences.system
     if system.use_region_overlap:
         # other draw_method options don't create transparent side bars
@@ -853,12 +983,15 @@ def get_reg_overlap():
             for r in area.regions:
                 if r.type == 'TOOLS':
                     rtoolsw = r.width
+                    #elif r.type == 'UI':
+                    #    ruiw = r.width
+    #return rtoolsw, ruiw
     return rtoolsw
 
 
-class ExactEditRotate(bpy.types.Operator):
-    bl_idname = "view3d.xedit_rotate_op"
-    bl_label = "Exact Edit Rotate"
+class XEditFreeRotate(bpy.types.Operator):
+    bl_idname = "view3d.xedit_free_rotate_op"
+    bl_label = "XEdit Free Rotate"
 
     # Only launch Add-On from OBJECT or EDIT modes
     @classmethod
@@ -1020,6 +1153,7 @@ class ExactEditRotate(bpy.types.Operator):
                                 if in_ref_pts(self, found_pt) is False:
                                     self.pts[self.pt_cnt].co3d = found_pt
                                     self.pt_cnt += 1
+                                    self.menu.change_menu(self.pt_cnt)
                                     if self.pt_cnt > 1:
                                         RotDat.axis_lock = None
                                         updatelock_pts(self, self.pts)
@@ -1180,6 +1314,12 @@ class ExactEditRotate(bpy.types.Operator):
             #self.addon_mode = CLICK_CHECK  # addon mode
             self.lmb_held = False
 
+            self.menu = MenuHandler(18, Colr.yellow, Colr.white, \
+                    self.rtoolsw, context.region)
+            self.menu.add_menu(["Axis Lock Rotate"])
+            self.menu.add_menu(["Axis Rotate"])
+            self.menu.add_menu(["Planar Rotate"])
+
             context.window_manager.modal_handler_add(self)
 
             init_ref_pts(self)
@@ -1193,15 +1333,3 @@ class ExactEditRotate(bpy.types.Operator):
         else:
             self.report({'WARNING'}, "View3D not found, cannot run operator")
             return {'CANCELLED'}
-
-
-def register():
-    #bpy.utils.register_class(MeasureInputPanel)
-    bpy.utils.register_class(ExactEditRotate)
-
-def unregister():
-    #bpy.utils.unregister_class(MeasureInputPanel)
-    bpy.utils.unregister_class(ExactEditRotate)
-
-if __name__ == "__main__":
-    register()
