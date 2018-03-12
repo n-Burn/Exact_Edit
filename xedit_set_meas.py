@@ -1724,5 +1724,3 @@ class XEditSetMeas(bpy.types.Operator):
         else:
             self.report({'WARNING'}, "View3D not found, cannot run operator")
             return {'CANCELLED'}
-
-\
