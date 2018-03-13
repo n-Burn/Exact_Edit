@@ -442,6 +442,7 @@ class ReferencePoint:
         print("self.colr :", self.colr)
         print("self.co3d :", self.co3d)
 
+
 def init_ref_pts(self):
     self.pts = [
         ReferencePoint("fre", Colr.green),
@@ -468,6 +469,7 @@ def set_highlight(self):
 
 def in_ref_pts(self, co3d, skip_idx=None):
     p_idxs = [0, 1, 2][:self.pt_cnt]
+    # skip_idx so co3d is not checked against itself
     if skip_idx is not None:
         p_idxs.remove(skip_idx)
     found = False
@@ -477,6 +479,7 @@ def in_ref_pts(self, co3d, skip_idx=None):
             self.swap_pt = i  # to-do : better solution than this
             break
     return found
+
 
 def add_pt(self, co3d):
     if in_ref_pts(self, co3d) is False:
@@ -496,6 +499,7 @@ def add_pt(self, co3d):
         #print("ref pt added:", self.cnt, "cnt:", self.cnt+1) 
         End Debug '''
 
+
 def rem_ref_pt(self, idx):
     # hackery or smart, you decide...
     if idx != self.pt_cnt - 1:
@@ -513,6 +517,7 @@ def rem_ref_pt(self, idx):
     else:
         RotDat.axis_lock = None
     self.highlight = True
+
 
 def add_select(self):
     if self.pt_cnt < 3:
@@ -549,6 +554,7 @@ def add_select(self):
                                 break
                     if exit_loop is True:
                         break
+
 
 # to-do : find way to merge this with add_select ?
 def add_select_multi(self):
@@ -590,10 +596,12 @@ def add_select_multi(self):
             self.report({'WARNING'}, 'Points overlap.')
         self.pts[self.mod_pt].co3d = self.multi_tmp.get_co()
 
+
 def swap_ref_pts(self, pt1, pt2):
     temp = self.pts[pt1].co3d.copy()
     self.pts[pt1].co3d = self.pts[pt2].co3d.copy()
     self.pts[pt2].co3d = temp
+
 
 def set_meas_btn(self):
     lock_pts = RotDat.lock_pts
@@ -607,6 +615,7 @@ def set_meas_btn(self):
         curr_meas_stor = degrees( algn_co1.angle(algn_co3) )
         self.meas_btn.set_text(format(curr_meas_stor, '.2f'))
         return
+
 
 def exit_multi_mode(self):
     m_co3d = self.multi_tmp.get_co()
