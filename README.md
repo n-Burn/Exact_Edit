@@ -5,7 +5,7 @@ Please view the wiki page for full documentation:
 
 https://github.com/n-Burn/Exact_Edit/wiki
 
-# Release 0.1.0
+## Release 0.1.0
 
 Changes:
 
