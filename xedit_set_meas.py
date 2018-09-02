@@ -49,10 +49,12 @@ from bpy_extras.view3d_utils import region_2d_to_origin_3d as reg2d_to_org3d
 ) = range(10)
 
 # globals
+popup_meas_backup = 0.0
 curr_meas_stor = 0.0
 new_meas_stor = None
 popup_active = False
-
+prev_popup_inputs = []
+prev_popup_inp_strings = []
 
 #print("Loaded add-on.\n")  # debug
 
@@ -120,7 +122,7 @@ def flts_alm_eq(flt_a, flt_b):
     return flt_a > (flt_b - tol) and flt_a < (flt_b + tol)
 
 
-# to-do : replace with flt_lists_alm_eq?
+# todo : replace with flt_lists_alm_eq?
 def vec3s_alm_eq(vec_a, vec_b):
     X, Y, Z = 0, 1, 2
     if flts_alm_eq(vec_a[X], vec_b[X]):
@@ -133,7 +135,7 @@ def vec3s_alm_eq(vec_a, vec_b):
 # assume both float lists are same size?
 def flt_lists_alm_eq(ls_a, ls_b):
     for i in range(len(ls_a)):
-        if flts_alm_eq(ls_a[i], ls_b[i]) is False:
+        if not flts_alm_eq(ls_a[i], ls_b[i]):
             return False
     return True
 
@@ -141,7 +143,8 @@ def flt_lists_alm_eq(ls_a, ls_b):
 class MenuStore:
     def __init__(self):
         self.cnt = 0
-        self.active = 0
+        self.active = 0  # unused ?
+        # todo : replace above with self.current ?
         self.txtcolrs = []
         self.tcoords = []
         self.texts = []
@@ -149,8 +152,10 @@ class MenuStore:
 
 
 class MenuHandler:
-    def __init__(self, tsize, act_colr, dis_colr, toolwid, reg):
+    def __init__(self, title, tsize, act_colr, dis_colr, toolwid, reg):
         self.dpi = bpy.context.user_preferences.system.dpi
+        self.title = title
+        # todo : better solution than None "magic numbers"
         self.menus = [None, None]  # no menu for 0 or 1
         self.menu_cnt = len(self.menus)
         self.current = 0  # current active menu
@@ -158,8 +163,9 @@ class MenuHandler:
         self.act_colr = act_colr
         self.dis_colr = dis_colr  # disabled color
         self.reg = reg  # region
+        self.active = False
 
-        view_offset = 36, 40  # box left top start
+        view_offset = 36, 45  # box left top start
         self.box_y_pad = 8  # vertical space between boxes
 
         fontid = 0
@@ -168,7 +174,7 @@ class MenuHandler:
         ucase_wid, ucase_hgt = blf.dimensions(fontid, "N")
         bot_space = blf.dimensions(fontid, "gp")[1] - lcase_hgt
         self.full_hgt = blf.dimensions(fontid, "NTgp")[1]
-        
+
         arr_wid, arr_hgt = 12, 16
         arrow_base = (0, 0), (0, arr_hgt), (arr_wid, arr_hgt/2)
         aw_adj, ah_adj = arr_wid * 1.5, (arr_hgt - ucase_hgt) / 2
@@ -177,12 +183,12 @@ class MenuHandler:
             self.arrow_pts.append((a[0] - aw_adj, a[1] - ah_adj))
 
         self.blef = view_offset[0] + toolwid  # box left start
-        self.btop = self.reg.height - view_offset[1]
+        self.titlco = self.blef // 2, self.reg.height - view_offset[1]
+        self.btop = self.titlco[1] - (self.full_hgt // 1.5)
         self.txt_y_pad = bot_space * 2
 
     def add_menu(self, strings):
-        fontid = 0
-        self.menus.append( MenuStore() )
+        self.menus.append(MenuStore())
         new = self.menus[-1]
         btop = self.btop
         tlef = self.blef  # text left
@@ -191,7 +197,7 @@ class MenuHandler:
             new.txtcolrs.append(self.dis_colr)
             new.texts.append(strings[i])
             bbot = btop - self.full_hgt
-            new.tcoords.append( (tlef, bbot) )
+            new.tcoords.append((tlef, bbot))
             btop = bbot - self.box_y_pad
             new.arrows.append((
                 (self.arrow_pts[0][0] + tlef, self.arrow_pts[0][1] + bbot),
@@ -216,42 +222,90 @@ class MenuHandler:
         return menu.texts[menu.active]
 
     #def rebuild_menus(self)  # add in case blender window size changes?
+    #    return
 
-    def draw(self):
+    def draw(self, menu_visible):
         menu = self.menus[self.current]
-        if menu is None:
-            return
-
-        # draw arrow
-        bgl.glEnable(bgl.GL_BLEND)
-        bgl.glColor4f(*self.act_colr)
-        bgl.glBegin(bgl.GL_LINE_LOOP)
-        for p in menu.arrows[menu.active]:
-            bgl.glVertex2f(*p)
-        bgl.glEnd()
-        
-        # draw text
+        # prepare to draw text
         font_id = 0
         blf.size(font_id, self.tsize, self.dpi)
-        for i in range(menu.cnt):
-            bgl.glColor4f(*menu.txtcolrs[i])
-            blf.position(font_id, menu.tcoords[i][0], menu.tcoords[i][1], 0)
-            blf.draw(font_id, menu.texts[i])
+        # draw title
+        bgl.glColor4f(*self.dis_colr)
+        blf.position(font_id, self.titlco[0], self.titlco[1], 0)
+        blf.draw(font_id, self.title)
+        # draw menu
+        if menu_visible and menu is not None:
+            for i in range(menu.cnt):
+                bgl.glColor4f(*menu.txtcolrs[i])
+                blf.position(font_id, menu.tcoords[i][0], menu.tcoords[i][1], 0)
+                blf.draw(font_id, menu.texts[i])
+
+            # draw arrow
+            bgl.glEnable(bgl.GL_BLEND)
+            bgl.glColor4f(*self.act_colr)
+            bgl.glBegin(bgl.GL_LINE_LOOP)
+            for p in menu.arrows[menu.active]:
+                bgl.glVertex2f(*p)
+            bgl.glEnd()
+
+
+def test_reset_prev_popup_inputs():
+    global prev_popup_inputs
+    prev_popup_inputs = []
+
+
+def push_temp_meas():
+    global prev_popup_inputs, popup_meas_backup
+    #print("popup_meas_backup:", popup_meas_backup)  # debug
+    max_len = 10
+    if popup_meas_backup not in prev_popup_inputs:
+        if len(prev_popup_inputs) == max_len:
+            prev_popup_inputs.pop()
+        prev_popup_inputs.insert(0, popup_meas_backup)
+    else:
+        if prev_popup_inputs.index(popup_meas_backup) != 0:
+            prev_popup_inputs.remove(popup_meas_backup)
+            prev_popup_inputs.insert(0, popup_meas_backup)
+
+
+def make_popup_enums(self, context):
+    global prev_popup_inputs, prev_popup_inp_strings
+    prev_popup_inp_strings[:] = [('-', '--', '')]
+    for i, val in enumerate(prev_popup_inputs):
+        prev_popup_inp_strings.append(( str(i), str(val), '' ))
+    return prev_popup_inp_strings
+
+
+class XEditStoreMeasBtn(bpy.types.Operator):
+    bl_idname = "object.store_meas_inp_op"
+    bl_label = "XEdit Store Measure Button"
+    bl_description = "Add current measure to stored measures"
+    bl_options = {'INTERNAL'}
+
+    def invoke(self, context, event):
+        #print("StoreMeasBtn: called invoke")
+        push_temp_meas()
+        return {'FINISHED'}
 
 
 # == pop-up dialog code ==
 # todo: update with newer menu code if it can ever be made to work
 class XEditMeasureInputPanel(bpy.types.Operator):
     bl_idname = "object.ms_input_dialog_op"
-    bl_label = "Measurement Input Panel"
+    bl_label = "XEdit Measure Input Panel"
     bl_options = {'INTERNAL'}
 
     float_new_meas = bpy.props.FloatProperty(name="Measurement")
+    prev_meas = bpy.props.EnumProperty(
+                    items=make_popup_enums,
+                    name="Last measure",
+                    description="Last 5 measurements entered")
 
     def execute(self, context):
         global popup_active, new_meas_stor
         new_meas_stor = self.float_new_meas
         popup_active = False
+        push_temp_meas()
         return {'FINISHED'}
 
     def invoke(self, context, event):
@@ -259,21 +313,41 @@ class XEditMeasureInputPanel(bpy.types.Operator):
         self.float_new_meas = curr_meas_stor
         return context.window_manager.invoke_props_dialog(self)
 
-    def cancel(self, context):  # testing
+    def cancel(self, context):
         global popup_active
         #print("Cancelled Pop-Up")  # debug
         popup_active = False
 
-class DialogPanel(bpy.types.Panel):
+    def check(self, context):
+        return True
+
     def draw(self, context):
-        self.layout.operator("object.ms_input_dialog_op")
+        global popup_meas_backup
+        popup_meas_backup = self.float_new_meas
+        # below will always evaluate False unless check method returns True
+        # todo : move this to check() method ?
+        if self.prev_meas != '-':
+            global prev_popup_inputs
+            int_prev_meas = int(self.prev_meas)
+            self.float_new_meas = float(prev_popup_inputs[int_prev_meas])
+            self.prev_meas = '-'
+
+        row = self.layout.row(True)
+        # split row into 3 cells: 1st 1/3, 2nd 75% of 2/3, 3rd 25% of 2/3
+        split = row.split(align=False)
+        split.label(text="Measurement")
+        split = row.split(percentage=0.75, align=False)
+        split.prop(self, 'float_new_meas', text="")
+        split.operator("object.store_meas_inp_op", text="Store")
+        row = self.layout.row(True)
+        row.prop(self, 'prev_meas')
 
 
 # === 3D View mouse location and button code ===
 class ViewButton():
     def __init__(self, colr_on, colr_off, txt_sz, txt_colr, offs=(0, 0)):
         self.dpi = bpy.context.user_preferences.system.dpi
-        self.active = False
+        self.is_drawn = False
         self.ms_over = False  # mouse over button
         self.wid = 0
         self.coords = None
@@ -317,6 +391,7 @@ class ViewButton():
         offs_2d = Vector((-self.wid / 2, 0))
         new2d = co2d + offs_2d
         
+        # co_bl == coordinate bottom left, co_tr == coordinate top right
         co_bl = new2d[0], new2d[1]
         co_tl = new2d[0], new2d[1] + self.hgt
         co_tr = new2d[0] + self.wid, new2d[1] + self.hgt
@@ -333,7 +408,7 @@ class ViewButton():
             return False
         return True
     
-    def draw_btn(self, btn_loc, mouse_co):
+    def draw_btn(self, btn_loc, mouse_co, highlight_mouse=False):
         if btn_loc is not None:
             offs_loc = btn_loc + self.offset
             font_id = 0
@@ -351,6 +426,16 @@ class ViewButton():
                 bgl.glVertex2f(coord[0], coord[1])
             bgl.glVertex2f(self.coords[0][0], self.coords[0][1])
             bgl.glEnd()
+            # draw outline around button box
+            if highlight_mouse and self.ms_over:
+                bgl.glColor4f(*self.colr_off)
+                HO = 4  # highlight_mouse offset
+                offs = (-HO, -HO), (-HO, HO), (HO, HO), (HO, -HO)
+                bgl.glBegin(bgl.GL_LINE_STRIP)
+                for i, coord in enumerate(self.coords):
+                    bgl.glVertex2f(coord[0] + offs[i][0], coord[1] + offs[i][1])
+                bgl.glVertex2f(self.coords[0][0] + offs[0][0], self.coords[0][1] + offs[0][1])
+                bgl.glEnd()
             # draw button text
             bgl.glColor4f(*self.txt_colr)
             blf.size(font_id, self.txt_sz, self.dpi)
@@ -409,6 +494,7 @@ class TempPoint():
     def print_vals(self):  # debug
         print("self.cnt:", self.cnt)
         print("self.ls:", self.cnt)
+        print("self.co3d:", self.co3d)
         for i in range(self.cnt):
             print("  [" + str(i) + "]:", [self.ls[i]])
 
@@ -460,11 +546,11 @@ def init_ref_pts(self):
     RotDat.arc_pts = None
 
 
-def set_highlight(self):
+def set_mouse_highlight(self):
     if self.pt_cnt < 3:
-        self.highlight = True
+        self.highlight_mouse = True
     else:
-        self.highlight = False
+        self.highlight_mouse = False
 
 
 def in_ref_pts(self, co3d, skip_idx=None):
@@ -476,27 +562,27 @@ def in_ref_pts(self, co3d, skip_idx=None):
     for i in p_idxs:
         if vec3s_alm_eq(self.pts[i].co3d, co3d):
             found = True
-            self.swap_pt = i  # to-do : better solution than this
+            self.swap_pt = i  # todo : better solution than this
             break
     return found
 
 
 def add_pt(self, co3d):
-    if in_ref_pts(self, co3d) is False:
+    if not in_ref_pts(self, co3d):
         self.pts[self.pt_cnt].co3d = co3d
         self.pt_cnt += 1
         self.menu.change_menu(self.pt_cnt)
         if self.pt_cnt > 1:
             updatelock_pts(self, self.pts)
-        set_highlight(self)
+        set_mouse_highlight(self)
         set_meas_btn(self)
-        ''' Begin Debug 
+        ''' Begin Debug
         cnt = self.pt_cnt - 1
         pt_fnd_str = str(self.pts[cnt].co3d)
         pt_fnd_str = pt_fnd_str.replace("<Vector ", "Vector(")
         pt_fnd_str = pt_fnd_str.replace(">", ")")
         print("ref_pt_" + str(cnt) + ' =', pt_fnd_str)
-        #print("ref pt added:", self.cnt, "cnt:", self.cnt+1) 
+        #print("ref pt added:", self.cnt, "cnt:", self.cnt+1)
         End Debug '''
 
 
@@ -516,7 +602,7 @@ def rem_ref_pt(self, idx):
         updatelock_pts(self, self.pts)
     else:
         RotDat.axis_lock = None
-    self.highlight = True
+    self.highlight_mouse = True
 
 
 def add_select(self):
@@ -533,30 +619,24 @@ def add_select(self):
             if len(bm.select_history) > 0:
                 exit_loop = False  # simplify checking...
                 for sel in bm.select_history:
+                    sel_verts = []
                     if type(sel) is bmesh.types.BMVert:
-                        v_co3d = m_w * sel.co
+                        sel_verts = [sel]
+                    elif type(sel) is bmesh.types.BMEdge:
+                        sel_verts = sel.verts
+                    elif type(sel) is bmesh.types.BMFace:
+                        sel_verts = sel.verts
+                    for v in sel_verts:
+                        v_co3d = m_w * v.co
                         add_pt(self, v_co3d)
                         if self.pt_cnt > 2:
                             exit_loop = True
-                    elif type(sel) is bmesh.types.BMEdge:
-                        for v in sel.verts:
-                            v_co3d = m_w * v.co
-                            add_pt(self, v_co3d)
-                            if self.pt_cnt > 2:
-                                exit_loop = True
-                                break
-                    elif type(sel) is bmesh.types.BMFace:
-                        for v in sel.verts:
-                            v_co3d = m_w * v.co
-                            add_pt(self, v_co3d)
-                            if self.pt_cnt > 2:
-                                exit_loop = True
-                                break
-                    if exit_loop is True:
+                            break
+                    if exit_loop:
                         break
 
 
-# to-do : find way to merge this with add_select ?
+# todo : find way to merge this with add_select ?
 def add_select_multi(self):
     if self.multi_tmp.cnt < self.multi_tmp.max_cnt:
         if bpy.context.mode == "OBJECT":
@@ -571,26 +651,20 @@ def add_select_multi(self):
             if len(bm.select_history) > 0:
                 exit_loop = False  # simplify checking...
                 for sel in bm.select_history:
+                    sel_verts = []
                     if type(sel) is bmesh.types.BMVert:
-                        v_co3d = m_w * sel.co
+                        sel_verts = [sel]
+                    elif type(sel) is bmesh.types.BMEdge:
+                        sel_verts = sel.verts
+                    elif type(sel) is bmesh.types.BMFace:
+                        sel_verts = sel.verts
+                    for v in sel_verts:
+                        v_co3d = m_w * v.co
                         self.multi_tmp.try_add(v_co3d)
                         if self.multi_tmp.cnt == self.multi_tmp.max_cnt:
                             exit_loop = True
-                    elif type(sel) is bmesh.types.BMEdge:
-                        for v in sel.verts:
-                            v_co3d = m_w * v.co
-                            self.multi_tmp.try_add(v_co3d)
-                            if self.multi_tmp.cnt == self.multi_tmp.max_cnt:
-                                exit_loop = True
-                                break
-                    elif type(sel) is bmesh.types.BMFace:
-                        for v in sel.verts:
-                            v_co3d = m_w * v.co
-                            self.multi_tmp.try_add(v_co3d)
-                            if self.multi_tmp.cnt == self.multi_tmp.max_cnt:
-                                exit_loop = True
-                                break
-                    if exit_loop is True:
+                            break
+                    if exit_loop:
                         break
         if in_ref_pts(self, self.multi_tmp.get_co(), self.mod_pt):
             self.report({'WARNING'}, 'Points overlap.')
@@ -606,7 +680,7 @@ def swap_ref_pts(self, pt1, pt2):
 def set_meas_btn(self):
     lock_pts = RotDat.lock_pts
     if self.pt_cnt == 2:
-        global curr_meas_stor 
+        global curr_meas_stor
         curr_meas_stor = (lock_pts[0].co3d - lock_pts[1].co3d).length
         self.meas_btn.set_text(format(curr_meas_stor, '.2f'))
     elif self.pt_cnt == 3:
@@ -617,17 +691,70 @@ def set_meas_btn(self):
         return
 
 
+# For adding multi point without first needing a reference point
+# todo : clean up TempPoint so this function isn't needed
+# todo : find way to merge this with add_select_multi
+def new_select_multi(self):
+    def enable_multi_mode(self):
+        if self.grab_pt is not None:
+            self.multi_tmp.__init__()
+            self.multi_tmp.co3d = Vector()
+            self.mod_pt = self.grab_pt
+            self.grab_pt = None
+        elif self.mod_pt is None:
+            self.multi_tmp.__init__()
+            self.multi_tmp.co3d = Vector()
+            self.mod_pt = self.pt_cnt
+            self.pt_cnt += 1
+
+    if bpy.context.mode == "OBJECT":
+        if len(bpy.context.selected_objects) > 0:
+            enable_multi_mode(self)
+            for obj in bpy.context.selected_objects:
+                self.multi_tmp.try_add(obj.location)
+                if self.multi_tmp.cnt == self.multi_tmp.max_cnt:
+                    break
+        else:
+            return
+    elif bpy.context.mode == "EDIT_MESH":
+        m_w = bpy.context.edit_object.matrix_world
+        bm = bmesh.from_edit_mesh(bpy.context.edit_object.data)
+        if len(bm.select_history) > 0:
+            enable_multi_mode(self)
+            exit_loop = False  # simplify checking...
+            for sel in bm.select_history:
+                sel_verts = []
+                if type(sel) is bmesh.types.BMVert:
+                    sel_verts = [sel]
+                elif type(sel) is bmesh.types.BMEdge:
+                    sel_verts = sel.verts
+                elif type(sel) is bmesh.types.BMFace:
+                    sel_verts = sel.verts
+                for v in sel_verts:
+                    v_co3d = m_w * v.co
+                    self.multi_tmp.try_add(v_co3d)
+                    if self.multi_tmp.cnt == self.multi_tmp.max_cnt:
+                        exit_loop = True
+                        break
+                if exit_loop:
+                    break
+        else:
+            return
+
+
 def exit_multi_mode(self):
     m_co3d = self.multi_tmp.get_co()
-    if in_ref_pts(self, m_co3d, self.mod_pt) is True:
+    if in_ref_pts(self, m_co3d, self.mod_pt):
         self.report({'ERROR'}, "Point overlapped another and was removed.")
         rem_ref_pt(self, self.mod_pt)
     else:
         self.pts[self.mod_pt].co3d = m_co3d
         if self.pt_cnt > 1:
             updatelock_pts(self, self.pts)
-        set_highlight(self)
+        set_mouse_highlight(self)
     self.mod_pt = None
+    set_meas_btn(self)
+    set_help_text(self, "CLICK")
 
 
 # Returns the closest object origin or vertex to the supplied 2D location
@@ -639,8 +766,6 @@ def find_closest_point(loc):
     shortest_dist = 40.0  # minimum distance from loc
     closest = None
     for obj in bpy.context.scene.objects:
-        # ob_idx = bpy.context.scene.objects.find( res[4].name )  # debug
-        #print("obj name:", obj.name)  # debug
         o_co2d = loc3d_to_reg2d(region, rv3d, obj.location)
         if o_co2d is None:
             continue
@@ -700,11 +825,10 @@ def closest_to_point(pt, pts):
 # Can a transformation be performed? Called after measure button is clicked
 # to let user know if valid options are set before enabling pop-up to get
 # user input.
-# to-do, move transf_type assignment to "point add" part of code?
+# todo, move transf_type assignment to "point add" part of code?
 def can_transf(self):
     global curr_meas_stor
     success = False
-    #objs = bpy.context.scene.objects
     if self.pt_cnt == 2:
         mode = self.menu.get_mode()
         if mode == "Move":
@@ -720,8 +844,8 @@ def can_transf(self):
             success = True
         # if not flat angle and no axis lock set, begin preparations for
         # arbitrary axis / spherical rotation
-        elif flts_alm_eq(curr_meas_stor, 0.0) is False and \
-        flts_alm_eq(curr_meas_stor, 180.0) is False:
+        elif not flts_alm_eq(curr_meas_stor, 0.0) and \
+        not flts_alm_eq(curr_meas_stor, 180.0):
             fre_co = self.pts[0].co3d
             anc_co = self.pts[1].co3d
             piv_co = self.pts[2].co3d
@@ -756,6 +880,7 @@ def get_new_3d_co(self, old_dis, new_dis):
         pt_neg = pt_anc.lerp(pt_fr, -scale)
         pt_pos_slp = slope_check(pt_anc, pt_pos)
         pt_neg_slp = slope_check(pt_anc, pt_neg)
+        # note: slope_check returns 3 bool values
         if orig_slope == pt_pos_slp:
             if new_dis > 0:
                 return pt_pos
@@ -803,7 +928,7 @@ def set_arc_pts(ref_pts):
         rotated.rotate(rot_val)
         rotated += piv
         rot_ang = (anc - piv).angle(rotated - piv)
-        if flts_alm_eq(rot_ang, 0.0) is False:
+        if not flts_alm_eq(rot_ang, 0.0):
             ang = -ang
         dis_p_f = (piv - fre).length
         dis_p_a = (piv - anc).length
@@ -871,7 +996,6 @@ def set_lock_pts(ref_pts, pt_cnt):
             set_arc_pts(ref_pts)
     else:
         RotDat.lock_pts = []
-        #new0, new1 = VertObj(), VertObj()
         new1 = ref_pts[1].copy()
         ptls = [ref_pts[i].co3d for i in range(pt_cnt)]  # shorthand
         # finds 3D midpoint between 2 supplied coordinates
@@ -889,7 +1013,7 @@ def set_lock_pts(ref_pts, pt_cnt):
             elif RotDat.axis_lock == 'Z':
                 new0.co3d = Vector([ mid3d[0], mid3d[1], ptls[0][2] ])
                 new1.co3d = Vector([ mid3d[0], mid3d[1], ptls[1][2] ])
-            if vec3s_alm_eq(new0.co3d, new1.co3d) is False:
+            if not vec3s_alm_eq(new0.co3d, new1.co3d):
                 RotDat.lock_pts = [new0, new1]
 
         # axis determines which of the Free's coordinates are assigned
@@ -907,9 +1031,9 @@ def set_lock_pts(ref_pts, pt_cnt):
             elif RotDat.axis_lock == 'Z':
                 new1.co3d = Vector([ ptls[1][0], ptls[1][1], mov_co[2] ])
                 new2.co3d = Vector([ ptls[2][0], ptls[2][1], mov_co[2] ])
-            if vec3s_alm_eq(new1.co3d, new2.co3d) is False and \
-            vec3s_alm_eq(new1.co3d, mov_co) is False and \
-            vec3s_alm_eq(new2.co3d, mov_co) is False:
+            if not vec3s_alm_eq(new1.co3d, new2.co3d) and \
+            not vec3s_alm_eq(new1.co3d, mov_co) and \
+            not vec3s_alm_eq(new2.co3d, mov_co):
                 #new0 = ReferencePoint("piv", Colr.blue, mov_co)
                 new0 = ReferencePoint("fre", Colr.green, mov_co)
                 RotDat.lock_pts = [new0, new1, new2]
@@ -1103,8 +1227,9 @@ def updatelock_pts(self, ref_pts):
     global curr_meas_stor
     set_lock_pts(ref_pts, self.pt_cnt)
     if RotDat.lock_pts == []:
-        self.report({'ERROR'}, 'Axis lock \''+ RotDat.axis_lock+
-                '\' creates identical points')
+        if RotDat.axis_lock is not None:
+            self.report({'ERROR'}, 'Axis lock \''+ RotDat.axis_lock+
+                    '\' creates identical points')
         RotDat.lock_pts = ref_pts
         RotDat.axis_lock = None
     # update Measurement in curr_meas_stor
@@ -1137,11 +1262,11 @@ def reset_settings(self):
     self.mouse_co = Vector((-9900, -9900))
     editmode_refresh()
     if self.pt_cnt < 2:
-        self.meas_btn.active = False
+        self.meas_btn.is_drawn = False
         set_lock_pts(self.pts, self.pt_cnt)
     else:
         updatelock_pts(self, self.pts)
-        self.meas_btn.active = True
+        self.meas_btn.is_drawn = True
         set_meas_btn(self)
     #self.snap_btn_act = True
     self.addon_mode = CLICK_CHECK
@@ -1151,13 +1276,13 @@ def reset_settings(self):
     #self.sel_backup.restore_selected()
 
     # make sure last transform didn't cause points to overlap
-    if vec3s_alm_eq(self.pts[0].co3d, self.pts[1].co3d) is True:
+    if vec3s_alm_eq(self.pts[0].co3d, self.pts[1].co3d):
         self.report({'ERROR'}, 'Free and Anchor share same location.')
         # reset ref pt data
         self.pt_cnt = 0
         self.menu.change_menu(self.pt_cnt)
         init_ref_pts(self)
-        self.highlight = True
+        self.highlight_mouse = True
 
     #if self.pt_find_md == GRABONLY:
     #    create_snap_pt(self.left_click_co, self.sel_backup)
@@ -1165,7 +1290,7 @@ def reset_settings(self):
 
 # runs transformation functions depending on which options are set.
 # transform functions cannot be called directly due to use of pop-up for
-# getting user input 
+# getting user input
 def do_transform(self):
     #print("do_transform")  # debug
     global curr_meas_stor, new_meas_stor
@@ -1236,7 +1361,6 @@ def draw_rot_arc(colr):
     len_arc_pts = len(RotDat.arc_pts)
     if len_arc_pts > 1:
         last = loc3d_to_reg2d(reg, rv3d, RotDat.arc_pts[0])
-        #for p in RotDat.arc_pts:
         for p in range(1, len_arc_pts):
             p2d = loc3d_to_reg2d(reg, rv3d, RotDat.arc_pts[p])
             draw_line_2d(last, p2d, Colr.white)
@@ -1273,7 +1397,7 @@ def draw_callback_px(self, context):
     ptsz_sml = 10
 
     add_rm_co = Vector((self.rtoolsw, 0))
-    self.add_rm_btn.draw_btn(add_rm_co, self.mouse_co)
+    self.add_rm_btn.draw_btn(add_rm_co, self.mouse_co, self.shift_held)
 
     # allow appending None so indexing does not get messed up
     # causing potential false positive for overlap
@@ -1283,7 +1407,7 @@ def draw_callback_px(self, context):
         ms_colr = self.pts[self.pt_cnt].colr
 
     lk_pts2d = None  # lock points 2D
-    self.meas_btn.active = False  # to-do : cleaner btn activation
+    self.meas_btn.is_drawn = False  # todo : cleaner btn activation
 
     # if the addon_mode is WAIT_FOR_POPUP, wait on POPUP to disable
     # popup_active, then run process_popup_input
@@ -1291,14 +1415,12 @@ def draw_callback_px(self, context):
     # how else to check for input. need higher level "input handler" class?
     if self.addon_mode == WAIT_FOR_POPUP:
         global popup_active
-        if popup_active is False:
-            #check_popup_input(self)
+        if not popup_active:
             process_popup_input(self)
             set_help_text(self, "CLICK")
         
     elif self.addon_mode == GET_0_OR_180:
-        #choose_0_or_180(self.pts[2], RotDat.rot_pt_pos, RotDat.rot_pt_neg, 
-        choose_0_or_180(RotDat.lock_pts[2], RotDat.rot_pt_pos, 
+        choose_0_or_180(RotDat.lock_pts[2], RotDat.rot_pt_pos,
                 RotDat.rot_pt_neg, RotDat.ang_diff_r, self.mouse_co)
 
     # note, can't chain above if-elif block in with one below as
@@ -1309,7 +1431,7 @@ def draw_callback_px(self, context):
         closest_pt, self.overlap_idx = closest_to_point(self.mouse_co, pts2d)
         pts2d[self.grab_pt] = self.mouse_co
         ms_colr = self.pts[self.grab_pt].colr
-        if self.shift_held is False:
+        if not self.shift_held:
             draw_line_2d(line_beg, self.mouse_co, self.pts[self.grab_pt].colr)
             draw_pt_2d(closest_pt, Colr.white, ptsz_lrg)
 
@@ -1318,7 +1440,7 @@ def draw_callback_px(self, context):
         m_pts2d = [loc3d_to_reg2d(reg, rv3d, p) for p in self.multi_tmp.ls]
         closest_pt, self.overlap_idx = closest_to_point(self.mouse_co, m_pts2d)
         draw_pt_2d(pts2d[self.mod_pt], Colr.white, ptsz_lrg)
-        if self.shift_held is True:
+        if self.shift_held:
             draw_pt_2d(self.mouse_co, Colr.black, ptsz_lrg)
             if len(m_pts2d) > 1:
                 for mp in m_pts2d:
@@ -1334,7 +1456,7 @@ def draw_callback_px(self, context):
     else:  # "Normal" mode
         closest_pt, self.overlap_idx = closest_to_point(self.mouse_co, pts2d)
         lin_p = pts2d
-        if self.shift_held is True:
+        if self.shift_held:
             draw_pt_2d(closest_pt, Colr.white, ptsz_lrg)
         else:
             draw_pt_2d(closest_pt, Colr.black, ptsz_lrg)
@@ -1360,13 +1482,13 @@ def draw_callback_px(self, context):
             if None not in (lin_p[0], lin_p[1]):
                 btn_co = lin_p[0].lerp(lin_p[1], 0.5)
                 self.meas_btn.draw_btn(btn_co, self.mouse_co)
-                self.meas_btn.active = True
+                self.meas_btn.is_drawn = True
         elif self.pt_cnt == 3:
             draw_rot_arc(self.pts[2].colr)
             draw_line_2d(lin_p[0], lin_p[2], Colr.white)
             draw_line_2d(lin_p[1], lin_p[2], Colr.white)
             self.meas_btn.draw_btn(lin_p[2], self.mouse_co)
-            self.meas_btn.active = True
+            self.meas_btn.is_drawn = True
 
     # draw reference points
     for p in range(self.pt_cnt):
@@ -1378,18 +1500,17 @@ def draw_callback_px(self, context):
         for p in range(lp_cnt):
             draw_pt_2d(lk_pts2d[p], self.pts[p].colr, ptsz_sml)
 
-    if self.highlight is True:
+    if self.highlight_mouse:
         draw_pt_2d(self.mouse_co, ms_colr, ptsz_sml)
 
-    # draw mode selction menu
-    if self.meas_btn.active is True:
-        self.menu.draw()
+    # draw mode selection menu
+    self.menu.draw(self.meas_btn.is_drawn)
 
 
 def exit_addon(self):
     restore_blender_settings(self.settings_backup)
     bpy.context.area.header_text_set()
-    # to-do : reset openGL settings?
+    # todo : reset openGL settings?
     #bgl.glColor4f()
     #blf.size()
     #blf.position()
@@ -1428,7 +1549,7 @@ class XEditSetMeas(bpy.types.Operator):
 
         if event.type in {'A', 'MIDDLEMOUSE', 'WHEELUPMOUSE',
         'WHEELDOWNMOUSE', 'NUMPAD_1', 'NUMPAD_2', 'NUMPAD_3', 'NUMPAD_4',
-        'NUMPAD_6', 'NUMPAD_7', 'NUMPAD_8', 'NUMPAD_9', 'TAB'}:
+        'NUMPAD_6', 'NUMPAD_7', 'NUMPAD_8', 'NUMPAD_9', 'NUMPAD_0', 'TAB'}:
             return {'PASS_THROUGH'}
 
         if event.type == 'MOUSEMOVE':
@@ -1443,7 +1564,7 @@ class XEditSetMeas(bpy.types.Operator):
                 #print("\nShift released")  # debug
 
         if event.type == 'RIGHTMOUSE' and event.value == 'PRESS':
-            if self.lmb_held is True:
+            if self.lmb_held:
                 bpy.types.SpaceView3D.draw_handler_remove(self._handle, 'WINDOW')
                 exit_addon(self)
                 return {'CANCELLED'}
@@ -1454,16 +1575,16 @@ class XEditSetMeas(bpy.types.Operator):
             self.lmb_held = True
 
         elif event.type == 'UP_ARROW' and event.value == 'RELEASE':
-            if self.meas_btn.active is True:
+            if self.meas_btn.is_drawn:
                 self.menu.update_active(-1)
 
         elif event.type == 'DOWN_ARROW' and event.value == 'RELEASE':
-            if self.meas_btn.active is True:
+            if self.meas_btn.is_drawn:
                 self.menu.update_active( 1)
 
         elif event.type in {'RET', 'LEFTMOUSE'} and event.value == 'RELEASE':
             # prevent click/enter that launched add-on from doing anything
-            if self.first_run is True:
+            if self.first_run:
                 self.first_run = False
                 return {'RUNNING_MODAL'}
             if event.type == 'LEFTMOUSE':
@@ -1476,19 +1597,18 @@ class XEditSetMeas(bpy.types.Operator):
             #===========================
             if self.addon_mode == GET_0_OR_180:
                 self.new_free_co, RotDat.ang_diff_r = choose_0_or_180(
-                        self.pts[2], RotDat.rot_pt_pos, RotDat.rot_pt_neg, 
+                        self.pts[2], RotDat.rot_pt_pos, RotDat.rot_pt_neg,
                         RotDat.ang_diff_r, self.mouse_co
                 )
-                self.addon_mode = DO_TRANSFORM  # why needed?
+                self.addon_mode = DO_TRANSFORM  # todo : find why this needed
                 do_transform(self)
 
             #===================================
             # Check for click on Measure Button
             #===================================
-            elif self.meas_btn.active is True and \
-                    self.meas_btn.ms_over is True:
+            elif self.meas_btn.is_drawn and self.meas_btn.ms_over:
                 #print("\nMeas Button Clicked")
-                if can_transf(self) is True:
+                if can_transf(self):
                     global popup_active
                     self.addon_mode = WAIT_FOR_POPUP
                     popup_active = True
@@ -1498,25 +1618,48 @@ class XEditSetMeas(bpy.types.Operator):
             #===========================================
             # Check for click on "Add Selected" Button
             #===========================================
-            elif self.add_rm_btn.ms_over is True:
+            elif self.add_rm_btn.ms_over:
                 if self.mod_pt is not None:
-                    if self.shift_held is False:
+                    if not self.shift_held:
                         add_select_multi(self)
+                    else:
+                        if self.pt_cnt < 3:
+                            new_select_multi(self)
+                            exit_multi_mode(self)
+                            self.menu.change_menu(self.pt_cnt)
                 elif self.grab_pt is not None:
                     co3d = None
                     if bpy.context.mode == "OBJECT":
                         if len(bpy.context.selected_objects) > 0:
-                            co3d = bpy.context.selected_objects[0].location
+                            if not self.shift_held:
+                                co3d = bpy.context.selected_objects[0].location
+                            else:
+                                new_select_multi(self)
+                                exit_multi_mode(self)
+                                self.menu.change_menu(self.pt_cnt)
                     elif bpy.context.mode == "EDIT_MESH":
                         m_w = bpy.context.edit_object.matrix_world
                         bm = bmesh.from_edit_mesh(bpy.context.edit_object.data)
                         if len(bm.select_history) > 0:
-                            for sel in bm.select_history:
-                                if type(sel) is bmesh.types.BMVert:
-                                    co3d = m_w * sel.co
-                                    break
+                            if not self.shift_held:
+                                for sel in bm.select_history:
+                                    if type(sel) is bmesh.types.BMVert:
+                                        co3d = m_w * sel.co
+                                        break
+                                    elif type(sel) is bmesh.types.BMEdge or \
+                                            type(sel) is bmesh.types.BMFace:
+                                        co3d = Vector()
+                                        for v in sel.verts:
+                                            co3d += m_w * v.co
+                                        co3d = co3d / len(sel.verts)
+                                        break
+                            else:
+                                new_select_multi(self)
+                                exit_multi_mode(self)
+                                self.menu.change_menu(self.pt_cnt)
+
                     if co3d is not None:
-                        if in_ref_pts(self, co3d) is False:
+                        if not in_ref_pts(self, co3d):
                             self.pts[self.grab_pt].co3d = co3d
                         else:
                             swap_ref_pts(self, self.grab_pt, self.swap_pt)
@@ -1524,62 +1667,74 @@ class XEditSetMeas(bpy.types.Operator):
                     self.grab_pt = None
                     updatelock_pts(self, self.pts)
                     set_meas_btn(self)
+                else:  # no grab or mod point
+                    if self.shift_held:
+                        if self.pt_cnt < 3:
+                            new_select_multi(self)
+                            if in_ref_pts(self, self.multi_tmp.get_co(), self.mod_pt):
+                                self.report({'WARNING'}, 'Points overlap.')
+                            self.pts[self.mod_pt].co3d = self.multi_tmp.get_co()
+                            self.menu.change_menu(self.pt_cnt)
+                    else:
+                        add_select(self)
+                # todo : see if this is really a good solution...
+                if self.mod_pt is None:
+                    set_help_text(self, "CLICK")
                 else:
-                    add_select(self)
-                set_help_text(self, "CLICK")
+                    set_help_text(self, "MULTI")
 
             #===========================
             # Point Place or Grab Mode
             #===========================
             elif self.mod_pt is None:
                 if self.overlap_idx is None:  # no point overlap
-                    if self.shift_held is False:
+                    if not self.shift_held:
                         if self.grab_pt is not None:
                             found_pt = find_closest_point(self.mouse_co)
                             if found_pt is not None:
-                                if in_ref_pts(self, found_pt) is False:
+                                if not in_ref_pts(self, found_pt):
                                     self.pts[self.grab_pt].co3d = found_pt
                             self.grab_pt = None
                             if self.pt_cnt > 1:
                                 updatelock_pts(self, self.pts)
-                            set_highlight(self)
+                            set_mouse_highlight(self)
                             set_meas_btn(self)
                             set_help_text(self, "CLICK")
                         elif self.pt_cnt < 3:
                             found_pt = find_closest_point(self.mouse_co)
                             if found_pt is not None:
-                                if in_ref_pts(self, found_pt) is False:
+                                if not in_ref_pts(self, found_pt):
                                     self.pts[self.pt_cnt].co3d = found_pt
                                     self.pt_cnt += 1
                                     self.menu.change_menu(self.pt_cnt)
                                     if self.pt_cnt > 1:
                                         updatelock_pts(self, self.pts)
                                         #if self.pt_cnt
-                                    set_highlight(self)
+                                    set_mouse_highlight(self)
                                     set_meas_btn(self)
                                     set_help_text(self, "CLICK")
-                                    ''' Begin Debug 
+                                    ''' Begin Debug
                                     cnt = self.pt_cnt - 1
                                     pt_fnd_str = str(self.pts[cnt].co3d)
                                     pt_fnd_str = pt_fnd_str.replace("<Vector ", "Vector(")
                                     pt_fnd_str = pt_fnd_str.replace(">", ")")
                                     print("ref_pt_" + str(cnt) + ' =', pt_fnd_str)
-                                    #print("ref pt added:", self.cnt, "cnt:", self.cnt+1) 
+                                    #print("ref pt added:", self.cnt, "cnt:", self.cnt+1)
                                     End Debug '''
                 else:  # overlap
                     if self.grab_pt is not None:
-                        if self.shift_held is False:
+                        if not self.shift_held:
                             if self.grab_pt != self.overlap_idx:
                                 swap_ref_pts(self, self.grab_pt, self.overlap_idx)
                                 set_meas_btn(self)
                             self.grab_pt = None
                             if self.pt_cnt > 1:
                                 updatelock_pts(self, self.pts)
-                            set_highlight(self)
+                            set_mouse_highlight(self)
                             set_meas_btn(self)
                             set_help_text(self, "CLICK")
 
-                    elif self.shift_held is False:
+                    elif not self.shift_held:
                         # overlap and shift not held == remove point
                         rem_ref_pt(self, self.overlap_idx)
                         set_meas_btn(self)
@@ -1588,7 +1743,7 @@ class XEditSetMeas(bpy.types.Operator):
                         # enable multi point mode
                         self.mod_pt = self.overlap_idx
                         self.multi_tmp.reset(self.pts[self.mod_pt].co3d)
-                        self.highlight = True
+                        self.highlight_mouse = True
                         set_help_text(self, "MULTI")
 
             #===========================
@@ -1596,7 +1751,7 @@ class XEditSetMeas(bpy.types.Operator):
             #===========================
             else:  # mod_pt exists
                 if self.overlap_idx is None:  # no point overlap
-                    if self.shift_held is False:
+                    if not self.shift_held:
                         # attempt to add new point to multi_tmp
                         found_pt = find_closest_point(self.mouse_co)
                         if found_pt is not None:
@@ -1607,10 +1762,8 @@ class XEditSetMeas(bpy.types.Operator):
                             self.pts[self.mod_pt].co3d = mult_co3d
                     else:  # shift_held, exit multi_tmp
                         exit_multi_mode(self)
-                        set_meas_btn(self)
-                        set_help_text(self, "CLICK")
                 else:  # overlap multi_tmp
-                    if self.shift_held is False:
+                    if not self.shift_held:
                         # remove multi_tmp point
                         self.multi_tmp.rem_pt(self.overlap_idx)
                         # if all multi_tmp points removed,
@@ -1627,8 +1780,6 @@ class XEditSetMeas(bpy.types.Operator):
                             self.pts[self.mod_pt].co3d = self.multi_tmp.get_co()
                     else:  # shift_held
                         exit_multi_mode(self)
-                        set_meas_btn(self)
-                        set_help_text(self, "CLICK")
 
         if event.type == 'C' and event.value == 'PRESS':
             #print("Pressed C\n")  # debug
@@ -1648,7 +1799,7 @@ class XEditSetMeas(bpy.types.Operator):
 
             '''
             elif event.type == 'D' and event.value == 'RELEASE':
-                # start debug console
+                # open debug console
                 __import__('code').interact(local=dict(globals(), **locals()))
             '''
 
@@ -1656,21 +1807,21 @@ class XEditSetMeas(bpy.types.Operator):
             # if already in grab mode, cancel grab
             if self.grab_pt is not None:
                 self.grab_pt = None
-                set_highlight(self)
+                set_mouse_highlight(self)
                 set_help_text(self, "CLICK")
             # else enable grab mode (if possible)
             elif self.mod_pt is None:
                 if self.overlap_idx is not None:
                     self.grab_pt = self.overlap_idx
-                    self.highlight = False
+                    self.highlight_mouse = False
                     set_help_text(self, "GRAB")
 
         elif event.type in {'ESC'} and event.value == 'RELEASE':
             bpy.types.SpaceView3D.draw_handler_remove(self._handle, 'WINDOW')
             exit_addon(self)
-            return {'CANCELLED'} 
+            return {'CANCELLED'}
 
-        if self.force_quit is True:
+        if self.force_quit:
             bpy.types.SpaceView3D.draw_handler_remove(self._handle, 'WINDOW')
             exit_addon(self)
             return {'FINISHED'}
@@ -1689,7 +1840,7 @@ class XEditSetMeas(bpy.types.Operator):
             self.settings_backup = backup_blender_settings()
             self.mouse_co = Vector((event.mouse_region_x, event.mouse_region_y))
             self.rtoolsw = get_reg_overlap()  # region tools (toolbar) width
-            self.highlight = True  # draw ref point on mouse
+            self.highlight_mouse = True  # draw ref point on mouse
             self.pts = []
             self.pt_cnt = 0
             self.lk_pts = []
@@ -1697,25 +1848,20 @@ class XEditSetMeas(bpy.types.Operator):
             self.meas_btn = ViewButton(Colr.red, Colr.white, 18, Colr.white, (0, 20))
             self.add_rm_btn = ViewButton(Colr.red, Colr.white, 18, Colr.white, (190, 36))
             self.overlap_idx = None
-            #self.ctrl_click = False
             self.shift_held = False
             #self.debug_flag = False
             self.mod_pt = None
-            #self.pause = False
             self.first_run = event.type in {'RET', 'LEFTMOUSE'} and event.value != 'RELEASE'
             self.force_quit = False
             self.grab_pt = None
-            #self.ang_diff_r = 0
             self.new_free_co = ()
             self.swap_pt = None
-            #self.selected = []
-            #self.measure = 0
-            self.addon_mode = CLICK_CHECK  # addon mode
+            self.addon_mode = CLICK_CHECK
             self.transf_type = ""  # transform type
             #self.pt_find_md = SLOW3DTO2D  # point find mode
             self.lmb_held = False
 
-            self.menu = MenuHandler(18, Colr.yellow, Colr.white, \
+            self.menu = MenuHandler("Set Measaure", 18, Colr.yellow, Colr.white, \
                     self.rtoolsw, context.region)
             self.menu.add_menu(["Move", "Scale"])
             self.menu.add_menu(["Rotate"])
