@@ -21,7 +21,7 @@ END GPL LICENSE BLOCK
 bl_info = {
     "name": "Exact Edit",
     "author": "nBurn",
-    "version": (0, 1, 0),
+    "version": (0, 2, 0),
     "blender": (2, 7, 7),
     "location": "View3D",
     "description": "Tool for precisely setting distance, scale, and rotation",
@@ -58,12 +58,14 @@ class XEditPanel(bpy.types.Panel):
 
 
 def register():
+    bpy.utils.register_class(xedit_set_meas.XEditStoreMeasBtn)
     bpy.utils.register_class(xedit_set_meas.XEditMeasureInputPanel)
     bpy.utils.register_class(xedit_set_meas.XEditSetMeas)
     bpy.utils.register_class(xedit_free_rotate.XEditFreeRotate)
     bpy.utils.register_class(XEditPanel)
 
 def unregister():
+    bpy.utils.unregister_class(xedit_set_meas.XEditStoreMeasBtn)
     bpy.utils.unregister_class(xedit_set_meas.XEditMeasureInputPanel)
     bpy.utils.unregister_class(xedit_set_meas.XEditSetMeas)
     bpy.utils.unregister_class(xedit_free_rotate.XEditFreeRotate)
