@@ -6,6 +6,10 @@ Please view the wiki page for full documentation:
 
 https://github.com/n-Burn/Exact_Edit/wiki
 
+For downloads, please visit the release branch:
+
+https://github.com/n-Burn/Exact_Edit/tree/release
+
 Exact Edit is maintained as part of the "official" blender-addons-contrib repository located here:
 
 https://developer.blender.org/diffusion/BAC/browse/master/exact_edit/
