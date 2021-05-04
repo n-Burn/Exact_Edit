@@ -6,15 +6,8 @@ Please view the wiki page for full documentation:
 
 https://github.com/n-Burn/Exact_Edit/wiki
 
-## Release 0.2.0 
+Exact Edit is maintained as part of the "official" blender-addons-contrib repository located here:
 
-Changes:
+https://developer.blender.org/diffusion/BAC/browse/master/exact_edit/
 
-* Added tool names to top of menu
-* Minor clean up to UI
-* Minor code cleanup
-
-New Features:
-
-* Added a measurement history to popup dialogue, stores last 10 unique measurements
-* Added ability to create a new multi point on the fly (hold shit when clicking "Add Selected")
+This repository is intended to serve as a mirror of code commits specific to Exact Edit from blender-addons-contrib.
